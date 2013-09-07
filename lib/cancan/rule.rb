@@ -26,6 +26,11 @@ module CanCan
       @match_all || (matches_action?(action) && matches_subject?(subject))
     end
 
+    # Ignores class name match and looks only at whether there is the PublicActivity::Model stuff included already
+    def relevant_for_public_activity?(action, subject)
+      (matches_action?(action) && subject_has_public_activity?)
+    end
+
     # Matches the block or conditions hash
     def matches_conditions?(action, subject, extra_args)
       if @match_all
@@ -76,6 +81,12 @@ module CanCan
     end
 
     private
+
+    def subject_has_public_activity?
+      @subjects.any? { |subject|
+        (subject.kind_of?(Module) && subject.ancestors.any? { |o| o == PublicActivity::Model })
+      }
+    end
 
     def subject_class?(subject)
       klass = (subject.kind_of?(Hash) ? subject.values.first : subject).class

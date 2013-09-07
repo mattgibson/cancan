@@ -96,19 +96,42 @@ module CanCan
         clean_joins(joins_hash) unless joins_hash.empty?
       end
 
+
+      # The intention is to use the WHERE conditions that are passed to the can() calls on the model tables that are joined
+      # To Version, not Version itself.
+      # Version has a polymorphic association called item, which holds the models.
+      # The SQL fragments start with the raw table name like this: "narratives.id IN (SELECT ...)"
       def database_records
-        if override_scope
-          @model_class.scoped.merge(override_scope)
-        elsif @model_class.respond_to?(:where) && @model_class.respond_to?(:joins)
-          mergeable_conditions = @rules.select {|rule| rule.unmergeable? }.blank?
+        if @model_class == PublicActivity::Activity
+
+          # Join the trackable model polymorphic tables to the activities table
+          models_to_join_with = @rules.collect { |rule| rule.subjects[0] }.uniq
+          versions_with_joined_tables = models_to_join_with.inject(@model_class) do |relation, model_class|
+            relation.joins("LEFT JOIN #{model_class.table_name} ON activities.trackable_type = '#{model_class}' AND activities.trackable_id = #{model_class.table_name}.id")
+          end
+
+          # As it's a left join, we need to lump the WHERE clauses together, otherwise it'll treat them as optional.
+          mergeable_conditions = @rules.select { |rule| rule.unmergeable? }.blank?
           if mergeable_conditions
-            @model_class.where(conditions).joins(joins)
+            versions_with_joined_tables.where(conditions_for_public_activity)
           else
-            @model_class.where(*(@rules.map(&:conditions))).joins(joins)
+            raise 'Cannot merge the conditions for PublicActivity CanCan stuff'
           end
         else
-          @model_class.scoped(:conditions => conditions, :joins => joins)
+          if override_scope
+            @model_class.scoped.merge(override_scope)
+          elsif @model_class.respond_to?(:where) && @model_class.respond_to?(:joins)
+            mergeable_conditions = @rules.select { |rule| rule.unmergeable? }.blank?
+            if mergeable_conditions
+              @model_class.where(conditions).joins(joins)
+            else
+              @model_class.where(*(@rules.map(&:conditions))).joins(joins)
+            end
+          else
+            @model_class.scoped(:conditions => conditions, :joins => joins)
+          end
         end
+
       end
 
       private
@@ -171,6 +194,43 @@ module CanCan
           joins << (nested.empty? ? name : {name => clean_joins(nested)})
         end
         joins
+      end
+
+
+
+      # Makes sure that the string of OR conditions are wrapped up so that they only apply to models they matter for.
+      # Without this bit, an empty sql conditions bit will lead to a "true = true" that will match everything, whereas we
+      # only want it to match that model.
+      def conditions_for_public_activity
+        if @rules.size == 1 && @rules.first.base_behavior
+          # Return the conditions directly if there's just one definition
+          wrap_condition_in_table_specific_not_null @rules.first, tableized_conditions(@rules.first.conditions).dup
+        else
+          @rules.reverse.inject('') do |sql, rule|
+            merge_conditions_for_public_activity(sql, tableized_conditions(rule.conditions).dup, rule)
+          end
+        end
+      end
+
+      def wrap_condition_in_table_specific_not_null(rule, condition)
+        "(#{rule.subjects[0].table_name}.id IS NOT NULL AND (#{condition}))"
+      end
+
+      def merge_conditions_for_public_activity(sql, conditions_hash, rule)
+        behavior = rule.base_behavior
+        if conditions_hash.blank?
+          blank_sql = behavior ? true_sql : false_sql
+          conditions = wrap_condition_in_table_specific_not_null rule, blank_sql
+        else
+          conditions = wrap_condition_in_table_specific_not_null rule, sanitize_sql(conditions_hash)
+        end
+
+        case sql
+          when ''
+            behavior ? conditions : "NOT #{conditions}"
+          else
+            behavior ? "#{conditions} OR #{sql}" : "NOT #{conditions} AND #{sql}"
+        end
       end
     end
   end

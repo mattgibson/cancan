@@ -292,10 +292,16 @@ module CanCan
       end
     end
 
+    # Divert to provide all of the rules for all models with PubicActivity enabled if we are doing a query
+    # for PublicActivity::Activity
     def relevant_rules_for_query(action, subject)
-      relevant_rules(action, subject).each do |rule|
-        if rule.only_block?
-          raise Error, "The accessible_by call cannot be used with a block 'can' definition. The SQL cannot be determined for #{action.inspect} #{subject.inspect}"
+      if subject == PublicActivity::Activity
+        relevant_rules_for_public_activity_query(action, subject)
+      else
+        relevant_rules(action, subject).each do |rule|
+          if rule.only_block?
+            raise Error, "The accessible_by call cannot be used with a block 'can' definition. The SQL cannot be determined for #{action.inspect} #{subject.inspect}"
+          end
         end
       end
     end
@@ -306,6 +312,25 @@ module CanCan
         :create => [:new],
         :update => [:edit],
       }
+    end
+
+
+    # Selects rules based on whether the action is right and the PublicActivity stuff has been included
+    def relevant_rules_for_public_activity(action, subject)
+      rules.reverse.select do |rule|
+        rule.expanded_actions = expand_actions(rule.actions)
+        rule.relevant_for_public_activity?(action, subject)
+      end
+    end
+
+
+    # Borks if the rules do not have SQL
+    def relevant_rules_for_public_activity_query(action, subject)
+      relevant_rules_for_public_activity(action, subject).each do |rule|
+        if rule.only_block?
+          raise Error, "The accessible_by call cannot be used with a block 'can' definition. The SQL cannot be determined for #{action.inspect} #{subject.inspect}"
+        end
+      end
     end
   end
 end
