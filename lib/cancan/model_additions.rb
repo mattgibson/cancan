@@ -22,6 +22,19 @@ module CanCan
       def accessible_by(ability, action = :index)
         ability.model_adapter(self, action).database_records
       end
+
+      attr_accessor :polymorphic_proxy_model_field, :has_polymorphic_proxy_model
+
+      # Sometimes, you want a model to be visible or not based on the visibility of an associated
+      # model. E.g. PaperTrail::version or PublicActivity::Activity
+      def has_polymorphic_proxy_model_on(polymorphic_association_name)
+        self.has_polymorphic_proxy_model = true
+        self.polymorphic_proxy_model_field = polymorphic_association_name
+      end
+
+      def has_polymorphic_proxy_model?
+        self.has_polymorphic_proxy_model.present? && self.has_polymorphic_proxy_model
+      end
     end
 
     def self.included(base)

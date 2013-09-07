@@ -84,7 +84,7 @@ module CanCan
 
     def subject_has_public_activity?
       @subjects.any? { |subject|
-        (subject.kind_of?(Module) && subject.ancestors.any? { |o| o == PublicActivity::Model })
+        (subject.kind_of?(Module) && subject.has_polymorphic_proxy_model?)
       }
     end
 

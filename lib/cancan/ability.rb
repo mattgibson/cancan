@@ -295,7 +295,7 @@ module CanCan
     # Divert to provide all of the rules for all models with PubicActivity enabled if we are doing a query
     # for PublicActivity::Activity
     def relevant_rules_for_query(action, subject)
-      if subject == PublicActivity::Activity
+      if subject.has_polymorphic_proxy_model?
         relevant_rules_for_public_activity_query(action, subject)
       else
         relevant_rules(action, subject).each do |rule|

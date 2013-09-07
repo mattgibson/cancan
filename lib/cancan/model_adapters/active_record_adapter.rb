@@ -102,12 +102,12 @@ module CanCan
       # Version has a polymorphic association called item, which holds the models.
       # The SQL fragments start with the raw table name like this: "narratives.id IN (SELECT ...)"
       def database_records
-        if @model_class == PublicActivity::Activity
+        if @model_class.has_polymorphic_proxy_model?
 
           # Join the trackable model polymorphic tables to the activities table
           models_to_join_with = @rules.collect { |rule| rule.subjects[0] }.uniq
           versions_with_joined_tables = models_to_join_with.inject(@model_class) do |relation, model_class|
-            relation.joins("LEFT JOIN #{model_class.table_name} ON activities.trackable_type = '#{model_class}' AND activities.trackable_id = #{model_class.table_name}.id")
+            relation.joins("LEFT JOIN #{model_class.table_name} ON #{@model_class.table_name}.#{@model_class.polymorphic_proxy_model_field}_type = '#{model_class}' AND #{@model_class.table_name}.#{@model_class.polymorphic_proxy_model_field}_id = #{model_class.table_name}.id")
           end
 
           # As it's a left join, we need to lump the WHERE clauses together, otherwise it'll treat them as optional.
@@ -115,7 +115,7 @@ module CanCan
           if mergeable_conditions
             versions_with_joined_tables.where(conditions_for_public_activity)
           else
-            raise 'Cannot merge the conditions for PublicActivity CanCan stuff'
+            raise 'Cannot merge the conditions for CanCan'
           end
         else
           if override_scope
