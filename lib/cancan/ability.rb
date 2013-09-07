@@ -296,7 +296,7 @@ module CanCan
     # for PublicActivity::Activity
     def relevant_rules_for_query(action, subject)
       if subject.respond_to?(:has_polymorphic_proxy_model?) && subject.has_polymorphic_proxy_model?
-        relevant_rules_for_public_activity_query(action, subject)
+        relevant_rules_for_polymorphic_proxy_model_query(action, subject)
       else
         relevant_rules(action, subject).each do |rule|
           if rule.only_block?
@@ -316,17 +316,17 @@ module CanCan
 
 
     # Selects rules based on whether the action is right and the PublicActivity stuff has been included
-    def relevant_rules_for_public_activity(action, subject)
+    def relevant_rules_for_polymorphic_proxy_model(action, subject)
       rules.reverse.select do |rule|
         rule.expanded_actions = expand_actions(rule.actions)
-        rule.relevant_for_public_activity?(action, subject)
+        rule.relevant_for_polymorphic_proxy_model?(action, subject)
       end
     end
 
 
     # Borks if the rules do not have SQL
-    def relevant_rules_for_public_activity_query(action, subject)
-      relevant_rules_for_public_activity(action, subject).each do |rule|
+    def relevant_rules_for_polymorphic_proxy_model_query(action, subject)
+      relevant_rules_for_polymorphic_proxy_model(action, subject).each do |rule|
         if rule.only_block?
           raise Error, "The accessible_by call cannot be used with a block 'can' definition. The SQL cannot be determined for #{action.inspect} #{subject.inspect}"
         end

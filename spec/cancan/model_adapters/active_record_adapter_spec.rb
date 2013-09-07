@@ -316,5 +316,11 @@ if ENV["MODEL_ADAPTER"].nil? || ENV["MODEL_ADAPTER"] == "active_record"
       # adapter.matches_condition?(article1, :name.nlike, "%helo%").should be_true
       # adapter.matches_condition?(article1, :name.nlike, "%ello worl%").should be_false
     end
+
+    # Here, we test a model which should inherit its permissions from another, which it has
+    # A polymorphic association to. Examples: PaperTrail::Version, PublicActivty::Activity.
+    describe "polymorphic proxy models" do
+
+    end
   end
 end

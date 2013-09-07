@@ -23,6 +23,7 @@ module CanCan
         ability.model_adapter(self, action).database_records
       end
 
+      attr_writer :has_polymorphic_proxy_model
       attr_accessor :polymorphic_proxy_model_field, :has_polymorphic_proxy_model
 
       # Sometimes, you want a model to be visible or not based on the visibility of an associated

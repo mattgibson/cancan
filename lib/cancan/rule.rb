@@ -26,9 +26,8 @@ module CanCan
       @match_all || (matches_action?(action) && matches_subject?(subject))
     end
 
-    # Ignores class name match and looks only at whether there is the PublicActivity::Model stuff included already
-    def relevant_for_public_activity?(action, subject)
-      (matches_action?(action) && subject_has_public_activity?)
+    def relevant_for_polymorphic_proxy_model?(action, subject)
+      (matches_action?(action) && subject_has_polymorphic_proxy_model?)
     end
 
     # Matches the block or conditions hash
@@ -82,7 +81,7 @@ module CanCan
 
     private
 
-    def subject_has_public_activity?
+    def subject_has_polymorphic_proxy_model?
       @subjects.any? { |subject|
         (subject.kind_of?(Module) && subject.has_polymorphic_proxy_model?)
       }
