@@ -26,6 +26,7 @@ if ENV["MODEL_ADAPTER"].nil? || ENV["MODEL_ADAPTER"] == "active_record"
         belongs_to :category
         has_many :comments
         belongs_to :user
+        has_many :events, :as => :linked_model
       end
     end
 
@@ -45,6 +46,17 @@ if ENV["MODEL_ADAPTER"].nil? || ENV["MODEL_ADAPTER"] == "active_record"
       end
       model do
         has_many :articles
+      end
+    end
+
+    with_model :event do
+      table do |t|
+        t.string 'title'
+        t.string 'linked_model_type'
+        t.integer 'linked_model_id'
+      end
+      model do
+        belongs_to :linked_model, :polymorphic => true
       end
     end
 
@@ -320,7 +332,62 @@ if ENV["MODEL_ADAPTER"].nil? || ENV["MODEL_ADAPTER"] == "active_record"
     # Here, we test a model which should inherit its permissions from another, which it has
     # A polymorphic association to. Examples: PaperTrail::Version, PublicActivty::Activity.
     describe "polymorphic proxy models" do
+      context 'with a hash of conditions' do
+        it 'should only fetch events where the associated article is visible' do
+          @ability.can :read, Article, :published => true
 
+          Event.class_eval('has_polymorphic_proxy_model_on("linked_model")')
+          article1 = Article.create!(:published => true)
+          article2 = Article.create!(:published => false)
+          event1 = Event.create!(:title => 'test', :linked_model => article1)
+          event2 = Event.create!(:title => 'test', :linked_model => article2)
+          Event.accessible_by(@ability).should == [event1]
+        end
+      end
+      context 'with multiple rule that are a hash of conditions' do
+        it 'should only fetch events where the associated article is visible' do
+          @ability.can :read, Article, :published => true
+          @ability.can :read, Comment, :spam => false
+
+          Event.class_eval('has_polymorphic_proxy_model_on("linked_model")')
+          article1 = Article.create!(:published => true)
+          article2 = Article.create!(:published => false)
+          event1 = Event.create!(:title => 'test', :linked_model => article1)
+          event2 = Event.create!(:title => 'test', :linked_model => article2)
+          Event.accessible_by(@ability).should == [event1]
+        end
+      end
+      context 'with an sql fragment and a block' do
+        it 'should only fetch events where the associated article is visible' do
+          @ability.can :read, Article, ["#{Article.table_name}.published = 't' "] do |article|
+              article.published == true
+          end
+
+          Event.class_eval('has_polymorphic_proxy_model_on("linked_model")')
+          article1 = Article.create!(:published => true)
+          article2 = Article.create!(:published => false)
+          event1 = Event.create!(:title => 'test', :linked_model => article1)
+          event2 = Event.create!(:title => 'test', :linked_model => article2)
+          Event.accessible_by(@ability).should == [event1]
+        end
+      end
+      context 'with more than one sql and block rule defined' do
+        it 'should only fetch events where the associated article is visible' do
+          @ability.can :read, Article, ["#{Article.table_name}.published = 't' "] do |article|
+            article.published == true
+          end
+          @ability.can :read, Comment, ["#{Comment.table_name}.spam = 'f' "] do |article|
+            article.published == true
+          end
+
+          Event.class_eval('has_polymorphic_proxy_model_on("linked_model")')
+          article1 = Article.create!(:published => true)
+          article2 = Article.create!(:published => false)
+          event1 = Event.create!(:title => 'test', :linked_model => article1)
+          event2 = Event.create!(:title => 'test', :linked_model => article2)
+          Event.accessible_by(@ability).should == [event1]
+        end
+      end
     end
   end
 end

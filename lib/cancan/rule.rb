@@ -26,8 +26,11 @@ module CanCan
       @match_all || (matches_action?(action) && matches_subject?(subject))
     end
 
+    # If we are asking for an index of Event models and Events have polymorphic proxies, then we
+    # Are going to say this is a relevant rule if it's about any model at all, as any model could
+    # potentially be the proxy.
     def relevant_for_polymorphic_proxy_model?(action, subject)
-      (matches_action?(action) && subject_has_polymorphic_proxy_model?)
+      (matches_action?(action) && subject.has_polymorphic_proxy_model?)
     end
 
     # Matches the block or conditions hash
@@ -80,12 +83,6 @@ module CanCan
     end
 
     private
-
-    def subject_has_polymorphic_proxy_model?
-      @subjects.any? { |subject|
-        (subject.kind_of?(Module) && subject.has_polymorphic_proxy_model?)
-      }
-    end
 
     def subject_class?(subject)
       klass = (subject.kind_of?(Hash) ? subject.values.first : subject).class

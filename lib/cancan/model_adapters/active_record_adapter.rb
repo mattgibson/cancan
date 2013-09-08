@@ -80,7 +80,7 @@ module CanCan
             end
             result_hash.merge!(tableized_conditions(nested,association_class))
           else
-            result_hash[name] = value
+            result_hash["#{model_class.table_name}.#{name}"] = value
           end
           result_hash
         end
@@ -104,16 +104,16 @@ module CanCan
       def database_records
         if @model_class.has_polymorphic_proxy_model?
 
-          # Join the trackable model polymorphic tables to the activities table
-          models_to_join_with = @rules.collect { |rule| rule.subjects[0] }.uniq
-          versions_with_joined_tables = models_to_join_with.inject(@model_class) do |relation, model_class|
-            relation.joins("LEFT JOIN #{model_class.table_name} ON #{@model_class.table_name}.#{@model_class.polymorphic_proxy_model_field}_type = '#{model_class}' AND #{@model_class.table_name}.#{@model_class.polymorphic_proxy_model_field}_id = #{model_class.table_name}.id")
-          end
-
           # As it's a left join, we need to lump the WHERE clauses together, otherwise it'll treat them as optional.
           mergeable_conditions = @rules.select { |rule| rule.unmergeable? }.blank?
           if mergeable_conditions
-            versions_with_joined_tables.where(conditions_for_public_activity)
+            # Join the trackable model polymorphic tables to the activities table. The SQL fragments then act on the
+            # left-joined tables, rather than the target model table.
+            models_to_join_with = @rules.collect { |rule| rule.subjects[0] }.uniq
+            model_relation_with_joined_tables = models_to_join_with.inject(@model_class) do |relation, model_class|
+              relation.joins("LEFT JOIN #{model_class.table_name} ON #{@model_class.table_name}.#{@model_class.polymorphic_proxy_model_field}_type = '#{model_class}' AND #{@model_class.table_name}.#{@model_class.polymorphic_proxy_model_field}_id = #{model_class.table_name}.id")
+            end
+            model_relation_with_joined_tables.where(conditions_for_polymorphic_proxy_model)
           else
             raise 'Cannot merge the conditions for CanCan'
           end
@@ -199,24 +199,26 @@ module CanCan
 
 
       # Makes sure that the string of OR conditions are wrapped up so that they only apply to models they matter for.
+      # These models have been linked to the target model with a left-join, so we want to make sure that if the
+      # SQL in the rule works, the left-joined id column is also no null for that model.
       # Without this bit, an empty sql conditions bit will lead to a "true = true" that will match everything, whereas we
       # only want it to match that model.
-      def conditions_for_public_activity
+      def conditions_for_polymorphic_proxy_model
         if @rules.size == 1 && @rules.first.base_behavior
           # Return the conditions directly if there's just one definition
-          wrap_condition_in_table_specific_not_null @rules.first, tableized_conditions(@rules.first.conditions).dup
+          wrap_condition_in_table_specific_not_null @rules.first, tableized_conditions(@rules.first.conditions, @rules.first.subjects.first).dup
         else
           @rules.reverse.inject('') do |sql, rule|
-            merge_conditions_for_public_activity(sql, tableized_conditions(rule.conditions).dup, rule)
+            merge_conditions_for_polymorphic_proxy(sql, tableized_conditions(rule.conditions, rule.subjects.first).dup, rule)
           end
         end
       end
 
       def wrap_condition_in_table_specific_not_null(rule, condition)
-        "(#{rule.subjects[0].table_name}.id IS NOT NULL AND (#{condition}))"
+        "(#{rule.subjects[0].table_name}.id IS NOT NULL AND (#{sanitize_sql(condition)}))"
       end
 
-      def merge_conditions_for_public_activity(sql, conditions_hash, rule)
+      def merge_conditions_for_polymorphic_proxy(sql, conditions_hash, rule)
         behavior = rule.base_behavior
         if conditions_hash.blank?
           blank_sql = behavior ? true_sql : false_sql

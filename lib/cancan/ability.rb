@@ -292,8 +292,8 @@ module CanCan
       end
     end
 
-    # Divert to provide all of the rules for all models with PubicActivity enabled if we are doing a query
-    # for PublicActivity::Activity
+    # Divert to provide all of the rules for all models with a polymorphic proxy model if we are doing a query
+    # for a class with the option specified.
     def relevant_rules_for_query(action, subject)
       if subject.respond_to?(:has_polymorphic_proxy_model?) && subject.has_polymorphic_proxy_model?
         relevant_rules_for_polymorphic_proxy_model_query(action, subject)
@@ -315,7 +315,7 @@ module CanCan
     end
 
 
-    # Selects rules based on whether the action is right and the PublicActivity stuff has been included
+    # Selects rules based on whether the action is right and the polymorphic proxy model stuff has been included
     def relevant_rules_for_polymorphic_proxy_model(action, subject)
       rules.reverse.select do |rule|
         rule.expanded_actions = expand_actions(rule.actions)
