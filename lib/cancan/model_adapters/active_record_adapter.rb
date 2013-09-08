@@ -79,8 +79,10 @@ module CanCan
               nested
             end
             result_hash.merge!(tableized_conditions(nested,association_class))
-          else
+          elsif @model_class.has_polymorphic_proxy_model?
             result_hash["#{model_class.table_name}.#{name}"] = value
+          else
+            result_hash[name] = value
           end
           result_hash
         end
